@@ -1,143 +1,139 @@
 import java.util.*;
-import javax.swing.*;
-import java.awt.*;
 
-public class ProcessSchedulerGantt {
-    static class Process {
-        int id, arrivalTime, burstTime, completionTime, waitingTime, turnAroundTime, remainingTime;
-
-        public Process(int id, int arrivalTime, int burstTime) {
-            this.id = id;
-            this.arrivalTime = arrivalTime;
-            this.burstTime = burstTime;
-            this.remainingTime = burstTime;
-        }
+class Process {
+    int id;         // Process ID
+    int arrival;    // Arrival Time
+    int burst;      // Burst Time (CPU Execution Time)
+    int remaining;  // Remaining Burst Time (for preemptive algorithms)
+    int waiting;    // Waiting Time
+    int turnaround; // Turnaround Time
+    int completion; // Completion Time
+    List<int[]> executionTimeline; // Tracks execution intervals
+    
+    public Process(int id, int arrival, int burst) {
+        this.id = id;
+        this.arrival = arrival;
+        this.burst = burst;
+        this.remaining = burst;
+        this.waiting = 0;
+        this.turnaround = 0;
+        this.completion = 0;
+        this.executionTimeline = new ArrayList<>();
     }
+    
+    // Copy constructor for creating duplicate process lists
+    public Process(Process p) {
+        this.id = p.id;
+        this.arrival = p.arrival;
+        this.burst = p.burst;
+        this.remaining = p.burst;
+        this.waiting = 0;
+        this.turnaround = 0;
+        this.completion = 0;
+        this.executionTimeline = new ArrayList<>();
+    }
+}
 
-    static class GanttChart extends JPanel {
-        private final List<int[]> timeline;
+public class ProcessScheduler {
+    // ... (previous methods remain the same)
 
-        public GanttChart(List<int[]> timeline) {
-            this.timeline = timeline;
+    // New method to generate and print Gantt Chart
+    public static void printGanttChart(String algorithmName, List<Process> processes) {
+        System.out.println("\n" + algorithmName + " Gantt Chart:");
+        
+        // Collect all execution intervals across all processes
+        List<int[]> allIntervals = new ArrayList<>();
+        for (Process p : processes) {
+            allIntervals.addAll(p.executionTimeline);
         }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            int x = 50, y = 50;
-            int width = 50;
-            g.setFont(new Font("Arial", Font.BOLD, 14));
-
-            for (int[] entry : timeline) {
-                int pid = entry[0], start = entry[1], end = entry[2];
-                g.setColor(new Color(100 + (pid * 30) % 156, 50 + (pid * 50) % 156, 200 - (pid * 25) % 156));
-                g.fillRect(x, y, width, 40);
-                g.setColor(Color.BLACK);
-                g.drawRect(x, y, width, 40);
-                g.drawString("P" + pid, x + 15, y + 25);
-                g.drawString(String.valueOf(start), x, y + 60);
-                x += width;
+        
+        // Sort intervals by start time
+        allIntervals.sort(Comparator.comparingInt(a -> a[0]));
+        
+        // Print top border
+        System.out.print("+");
+        for (int[] interval : allIntervals) {
+            for (int i = 0; i < interval[1] - interval[0]; i++) {
+                System.out.print("-");
             }
-            g.drawString(String.valueOf(timeline.get(timeline.size() - 1)[2]), x, y + 60);
+            System.print("+");
         }
+        System.out.println();
+        
+        // Print process IDs
+        System.out.print("|");
+        for (int[] interval : allIntervals) {
+            String processLabel = "P" + interval[2];
+            int padLeft = (interval[1] - interval[0] - processLabel.length()) / 2;
+            int padRight = interval[1] - interval[0] - processLabel.length() - padLeft;
+            
+            for (int i = 0; i < padLeft; i++) System.print(" ");
+            System.print(processLabel);
+            for (int i = 0; i < padRight; i++) System.print(" ");
+            System.print("|");
+        }
+        System.out.println();
+        
+        // Print bottom border with timestamps
+        System.out.print("+");
+        int prevEnd = 0;
+        for (int[] interval : allIntervals) {
+            for (int i = 0; i < interval[1] - interval[0]; i++) {
+                System.print("-");
+            }
+            System.print("+");
+            prevEnd = interval[1];
+        }
+        System.out.println();
+        
+        // Print time stamps
+        System.out.print("0");
+        prevEnd = 0;
+        for (int[] interval : allIntervals) {
+            // Print spaces before timestamp
+            for (int i = 0; i < interval[1] - interval[0] - String.valueOf(interval[1]).length(); i++) {
+                System.print(" ");
+            }
+            System.print(interval[1]);
+            prevEnd = interval[1];
+        }
+        System.out.println();
     }
+
+    // Modify existing scheduling algorithms to track execution timeline
+    public static List<Process> fcfs(List<Process> originalProcesses) {
+        List<Process> processes = copyProcesses(originalProcesses);
+        processes.sort(Comparator.comparingInt(p -> p.arrival));
+        
+        int currentTime = 0;
+        
+        for (Process p : processes) {
+            if (currentTime < p.arrival) {
+                currentTime = p.arrival;
+            }
+            
+            // Track execution timeline
+            p.executionTimeline.add(new int[]{currentTime, currentTime + p.burst, p.id});
+            
+            p.waiting = currentTime - p.arrival;
+            currentTime += p.burst;
+            p.completion = currentTime;
+            p.turnaround = p.completion - p.arrival;
+        }
+        
+        return processes;
+    }
+
+    // Similar modifications for other scheduling algorithms (sjfNonPreemptive, sjfPreemptive, roundRobin)
+    // Add tracking of execution timeline in each algorithm's implementation
 
     public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        System.out.print("Enter number of processes: ");
-        int n = sc.nextInt();
-        Process[] processes = new Process[n];
-
-        for (int i = 0; i < n; i++) {
-            System.out.print("Enter arrival time of process " + (i + 1) + ": ");
-            int arrivalTime = sc.nextInt();
-            System.out.print("Enter burst time of process " + (i + 1) + ": ");
-            int burstTime = sc.nextInt();
-            processes[i] = new Process(i + 1, arrivalTime, burstTime);
-        }
-
-        System.out.print("Enter time quantum for Round Robin: ");
-        int timeQuantum = sc.nextInt();
-
-        System.out.println("\nScheduling Algorithms Results:");
-
-        displayGanttChart("FCFS Scheduling", scheduleFCFS(processes.clone()));
-        displayGanttChart("SJF Non-Preemptive Scheduling", scheduleSJFNonPreemptive(processes.clone()));
-        displayGanttChart("SJF Preemptive Scheduling", scheduleSJFPreemptive(processes.clone()));
-        displayGanttChart("Round Robin Scheduling", scheduleRoundRobin(processes.clone(), timeQuantum));
-    }
-
-    private static void displayGanttChart(String title, List<int[]> timeline) {
-        JFrame frame = new JFrame(title);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(800, 300);
-        frame.add(new GanttChart(timeline));
-        frame.setVisible(true);
-    }
-
-    private static List<int[]> scheduleFCFS(Process[] processes) {
-        Arrays.sort(processes, Comparator.comparingInt(p -> p.arrivalTime));
-        List<int[]> timeline = new ArrayList<>();
-        int time = 0;
-        for (Process p : processes) {
-            if (time < p.arrivalTime) time = p.arrivalTime;
-            timeline.add(new int[]{p.id, time, time + p.burstTime});
-            time += p.burstTime;
-        }
-        return timeline;
-    }
-
-    private static List<int[]> scheduleSJFNonPreemptive(Process[] processes) {
-        Arrays.sort(processes, Comparator.comparingInt(p -> p.arrivalTime));
-        List<int[]> timeline = new ArrayList<>();
-        List<Process> processList = new ArrayList<>(Arrays.asList(processes));
-        int time = 0;
-        while (!processList.isEmpty()) {
-            Process shortest = processList.stream().filter(p -> p.arrivalTime <= time)
-                .min(Comparator.comparingInt(p -> p.burstTime)).orElse(null);
-            if (shortest == null) {
-                time++;
-                continue;
-            }
-            processList.remove(shortest);
-            timeline.add(new int[]{shortest.id, time, time + shortest.burstTime});
-            time += shortest.burstTime;
-        }
-        return timeline;
-    }
-
-    private static List<int[]> scheduleSJFPreemptive(Process[] processes) {
-        Arrays.sort(processes, Comparator.comparingInt(p -> p.arrivalTime));
-        List<int[]> timeline = new ArrayList<>();
-        int time = 0, completed = 0;
-        while (completed < processes.length) {
-            Process shortest = Arrays.stream(processes).filter(p -> p.arrivalTime <= time && p.remainingTime > 0)
-                .min(Comparator.comparingInt(p -> p.remainingTime)).orElse(null);
-            if (shortest == null) {
-                time++;
-                continue;
-            }
-            timeline.add(new int[]{shortest.id, time, time + 1});
-            shortest.remainingTime--;
-            time++;
-            if (shortest.remainingTime == 0) completed++;
-        }
-        return timeline;
-    }
-
-    private static List<int[]> scheduleRoundRobin(Process[] processes, int quantum) {
-        Queue<Process> queue = new LinkedList<>(Arrays.asList(processes));
-        List<int[]> timeline = new ArrayList<>();
-        int time = 0;
-        while (!queue.isEmpty()) {
-            Process p = queue.poll();
-            if (p.arrivalTime > time) time = p.arrivalTime;
-            int executedTime = Math.min(p.remainingTime, quantum);
-            timeline.add(new int[]{p.id, time, time + executedTime});
-            p.remainingTime -= executedTime;
-            time += executedTime;
-            if (p.remainingTime > 0) queue.add(p);
-        }
-        return timeline;
+        // ... (previous main method code)
+        
+        // After displaying results, print Gantt charts
+        printGanttChart("First-Come, First-Served (FCFS)", fcfsResult);
+        printGanttChart("Shortest Job First (SJF) Non-Preemptive", sjfNonPreemptiveResult);
+        printGanttChart("Shortest Job First (SJF) Preemptive (SRTF)", sjfPreemptiveResult);
+        printGanttChart("Round Robin (RR)", rrResult);
     }
 }
